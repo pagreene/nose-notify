@@ -46,7 +46,7 @@ def _get_pattern_from_output(proc, pattern, retries=5, wait=1):
 
 MSG_FMT = """From: Tester <{sender}>
 To: {name} <{receiver}>
-Subject: Nosetest Results
+Subject: Nosetest Results ({version})
 
 {content}
 """
@@ -70,13 +70,31 @@ def start_server():
     return hostname, int(port), server_proc
 
 
+def extract_summary(message):
+    """Get the error summary from the test log."""
+    mstr = message.decode('utf-8')
+    mlines = mstr.splitlines()
+    if not mlines[-1].startswith('FAILED'):
+        return None
+    for i, line in enumerate(mlines):
+        if line == '='*70 or line == '-'*70:
+            break
+    return '\n'.join(mlines[i:])
+
+
 def send_email(name, receiver, message):
     """Send an email with the given message."""
 
     # Send the email.
     sender = 'noreply@' + socket.gethostname()
-    smtp_msg = MSG_FMT.format(sender=sender, name=name, content=message,
-                              receiver=receiver)
+    summary = extract_summary(message)
+    if summary is None:
+        # We passed, no need to send an email!
+        return True
+    smtp_msg = MSG_FMT.format(sender=sender, name=name,
+                              content=summary,
+                              receiver=receiver,
+                              version=sys.version.split(' ')[0])
     smtp = smtplib.SMTP(HOST, port=PORT)
     smtp.sendmail(sender, [receiver], smtp_msg)
     return True
