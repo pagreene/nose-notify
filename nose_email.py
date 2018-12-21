@@ -7,14 +7,11 @@ import sys
 import nose
 import smtplib
 from time import sleep
-if sys.version_info.major == 2:
-    from io import BytesIO as StringIO
-else:
-    from io import StringIO
+from io import BytesIO
 from subprocess import Popen, PIPE
 
 
-class SavedStream(StringIO):
+class SavedStream(BytesIO):
     """This class is identical to StringIO, but prints write input."""
     def write(self, inp):
         print(inp, end='')
@@ -82,8 +79,6 @@ def send_email(name, receiver, message):
                               receiver=receiver)
     smtp = smtplib.SMTP(HOST, port=PORT)
     smtp.sendmail(sender, [receiver], smtp_msg)
-
-    # Check for success.
     return True
 
 
