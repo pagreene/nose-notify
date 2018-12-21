@@ -10,6 +10,9 @@ from time import sleep
 from io import BytesIO
 from subprocess import Popen, PIPE
 
+import requests
+import json
+
 
 class SavedStream(BytesIO):
     """This class is identical to StringIO, but prints write input."""
@@ -18,11 +21,11 @@ class SavedStream(BytesIO):
         super(SavedStream, self).write(inp.encode('utf-8'))
 
 
-def run():
+def run(argv):
     """Run the nose test(s), capturing the logs as we go."""
     stream = SavedStream()
     nose_config = nose.config.Config(stream=stream)
-    nose.run(config=nose_config, argv=sys.argv)
+    nose.run(config=nose_config, argv=argv)
     return stream.getvalue()
 
 
@@ -46,9 +49,9 @@ def _get_pattern_from_output(proc, pattern, retries=5, wait=1):
 
 MSG_FMT = """From: Tester <{sender}>
 To: {name} <{receiver}>
-Subject: Nosetest Results ({version})
+Subject: Nosetest Results ({version}) {cmd}
 
-{content}
+<font face="monospace, monospace">{content}</font>
 """
 HOST = 'localhost'
 PORT = 8025
@@ -82,7 +85,7 @@ def extract_summary(message):
     return '\n'.join(mlines[i:])
 
 
-def send_email(name, receiver, message):
+def send_email(name, receiver, message, cmd):
     """Send an email with the given message."""
 
     # Send the email.
@@ -91,20 +94,54 @@ def send_email(name, receiver, message):
     if summary is None:
         # We passed, no need to send an email!
         return True
-    smtp_msg = MSG_FMT.format(sender=sender, name=name,
-                              content=summary,
-                              receiver=receiver,
+    smtp_msg = MSG_FMT.format(sender=sender, name=name, cmd=cmd,
+                              content=summary, receiver=receiver,
                               version=sys.version.split(' ')[0])
     smtp = smtplib.SMTP(HOST, port=PORT)
     smtp.sendmail(sender, [receiver], smtp_msg)
     return True
 
 
+def send_slack_message(hook, message, cmd):
+    """Send a slack message with the results."""
+    summary = extract_summary(message)
+    message = "Nosetests failed when running: %s" % cmd
+    data_json = {'text': message,
+                 'attachments': [{'color': 'danger',
+                                  'text': '```%s```' % summary}]}
+    resp = requests.post(hook, data=json.dumps(data_json),
+                         headers={'Content-type': 'application/json'})
+    if resp.status_code is not 200:
+        print("Message failed to send.")
+        print(resp.reason)
+    return
+
+
+def pop_argv(args, key):
+    val = None
+    if key in args:
+        idx = args.index(key)
+        args.pop(idx)
+        val = args.pop(idx)
+    return val
+
+
 def main():
-    result = run()
-    sent = send_email('Patrick Greene', 'phystheory4fun@gmail.com', result)
-    if not sent:
-        sys.exit(1)
+    args = sys.argv
+    print(args)
+    email = pop_argv(args, '--email')
+    name = pop_argv(args, '--name')
+    hook = pop_argv(args, '--slack_hook')
+
+    cmd = ' '.join(['nosetests'] + sys.argv[1:])
+    print(cmd)
+    result = run(args)
+    if hook:
+        send_slack_message(hook, result, cmd)
+    if name and email:
+        sent = send_email(name, email, result, cmd)
+        if not sent:
+            sys.exit(1)
     return
 
 
