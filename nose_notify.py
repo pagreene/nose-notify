@@ -2,16 +2,16 @@ from __future__ import absolute_import, print_function, unicode_literals
 from builtins import dict, str
 
 import re
-import socket
+import os
 import sys
+import json
 import nose
+import socket
 import smtplib
+import requests
 from time import sleep
 from io import BytesIO
 from subprocess import Popen, PIPE
-
-import requests
-import json
 
 
 class SavedStream(BytesIO):
@@ -21,11 +21,14 @@ class SavedStream(BytesIO):
         super(SavedStream, self).write(inp.encode('utf-8'))
 
 
-def run(argv):
+def run():
     """Run the nose test(s), capturing the logs as we go."""
     stream = SavedStream()
-    nose_config = nose.config.Config(stream=stream)
-    nose.run(config=nose_config, argv=argv)
+    cfg_files = nose.config.all_config_files()
+    manager = nose.plugins.manager.DefaultPluginManager()
+    nose_config = nose.config.Config(env=os.environ, files=cfg_files,
+                                     plugins=manager, stream=stream)
+    nose.run(config=nose_config)
     return stream.getvalue()
 
 
@@ -135,7 +138,7 @@ def main():
 
     cmd = ' '.join(['nosetests'] + sys.argv[1:])
     print(cmd)
-    result = run(args)
+    result = run()
     if hook:
         send_slack_message(hook, result, cmd)
     if name and email:
