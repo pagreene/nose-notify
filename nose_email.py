@@ -51,7 +51,7 @@ MSG_FMT = """From: Tester <{sender}>
 To: {name} <{receiver}>
 Subject: Nosetest Results ({version}) {cmd}
 
-<font face="monospace, monospace">{content}</font>
+{content}
 """
 HOST = 'localhost'
 PORT = 8025
