@@ -76,24 +76,23 @@ def start_server():
     return hostname, int(port), server_proc
 
 
-def extract_summary(message):
+def parse_result(message):
     """Get the error summary from the test log."""
     mstr = message.decode('utf-8')
     mlines = mstr.splitlines()
     if not mlines[-1].startswith('FAILED'):
-        return None
+        return 0, None
     for i, line in enumerate(mlines):
         if line == '='*70 or line == '-'*70:
             break
-    return '\n'.join(mlines[i:])
+    return 1, '\n'.join(mlines[i:])
 
 
-def send_email(name, receiver, message, cmd):
+def send_email(name, receiver, summary, cmd):
     """Send an email with the given message."""
 
     # Send the email.
     sender = 'noreply@' + socket.gethostname()
-    summary = extract_summary(message)
     if summary is None:
         # We passed, no need to send an email!
         return True
@@ -105,9 +104,8 @@ def send_email(name, receiver, message, cmd):
     return True
 
 
-def send_slack_message(hook, message, cmd):
+def send_slack_message(hook, summary, cmd):
     """Send a slack message with the results."""
-    summary = extract_summary(message)
     message = "Nosetests failed when running: %s" % cmd
     data_json = {'text': message,
                  'attachments': [{'color': 'danger',
@@ -139,11 +137,18 @@ def main():
     cmd = ' '.join(['nosetests'] + sys.argv[1:])
     print(cmd)
     result = run()
-    if hook:
-        send_slack_message(hook, result, cmd)
-    if name and email:
-        sent = send_email(name, email, result, cmd)
+    status, summary = parse_result(result)
+    if hook and status == 1:
+        try:
+            send_slack_message(hook, summary, cmd)
+        except Exception as e:
+            print("Failed to send slack message.")
+            sys.exit(1)
+        sys.exit(1)
+    if name and email and status == 1:
+        sent = send_email(name, email, summary, cmd)
         if not sent:
+            print("Failed to send email.")
             sys.exit(1)
     return
 
