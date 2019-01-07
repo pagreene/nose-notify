@@ -52,7 +52,7 @@ def _get_pattern_from_output(proc, pattern, retries=5, wait=1):
 
 MSG_FMT = """From: Tester <{sender}>
 To: {name} <{receiver}>
-Subject: Nosetest Results ({version}) {cmd}
+Subject: Nosetest Results for {label} ({version}) {cmd}
 
 {content}
 """
@@ -100,8 +100,9 @@ def parse_result(message):
     return 1, '\n'.join(mlines[i_start:i_end])
 
 
-def send_email(name, receiver, summary, cmd):
+def send_email(name, receiver, summary, cmd, label):
     """Send an email with the given message."""
+    py_version = '%d.%d' % (sys.version_info.major, sys.version_info.minor)
 
     # Send the email.
     sender = 'noreply@' + socket.gethostname()
@@ -110,17 +111,17 @@ def send_email(name, receiver, summary, cmd):
         return True
     smtp_msg = MSG_FMT.format(sender=sender, name=name, cmd=cmd,
                               content=summary, receiver=receiver,
-                              version=sys.version.split(' ')[0])
+                              version=py_version, label=label)
     smtp = smtplib.SMTP(HOST, port=PORT)
     smtp.sendmail(sender, [receiver], smtp_msg)
     return True
 
 
-def send_slack_message(hook, summary, cmd):
+def send_slack_message(hook, summary, cmd, label):
     """Send a slack message with the results."""
     py_version = '%d.%d' % (sys.version_info.major, sys.version_info.minor)
-    message = "Nosetests failed in *Python %s* when running:\n`%s`"\
-              % (py_version, cmd)
+    message = "Nosetests of _%s_ failed in *Python %s* when running:\n`%s`"\
+              % (label, py_version, cmd)
     data_json = {'text': message,
                  'attachments': [{'color': 'danger',
                                   'text': '```%s```' % summary,
@@ -148,6 +149,7 @@ def main():
     email = pop_argv(args, '--email')
     name = pop_argv(args, '--name')
     hook = pop_argv(args, '--slack_hook')
+    label = pop_argv(args, '--label')
 
     cmd = ' '.join(['nosetests'] + sys.argv[1:])
     print(cmd)
@@ -155,13 +157,13 @@ def main():
     status, summary = parse_result(result)
     if hook and status == 1:
         try:
-            send_slack_message(hook, summary, cmd)
+            send_slack_message(hook, summary, cmd, label)
         except Exception as e:
             print("Failed to send slack message.")
             sys.exit(1)
         sys.exit(1)
     if name and email and status == 1:
-        sent = send_email(name, email, summary, cmd)
+        sent = send_email(name, email, summary, cmd, label)
         if not sent:
             print("Failed to send email.")
             sys.exit(1)
