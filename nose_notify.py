@@ -123,7 +123,7 @@ def send_slack_message(hook, summary, cmd):
               % (py_version, cmd)
     data_json = {'text': message,
                  'attachments': [{'color': 'danger',
-                                  'text': ':\n```%s```' % summary,
+                                  'text': '```%s```' % summary,
                                   'mrkdwn_in': ['text', 'pretext']}]}
     resp = requests.post(hook, data=json.dumps(data_json),
                          headers={'Content-type': 'application/json'})
