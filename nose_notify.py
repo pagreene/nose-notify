@@ -17,7 +17,7 @@ from subprocess import Popen, PIPE
 class SavedStream(BytesIO):
     """This class is identical to StringIO, but prints write input."""
     def write(self, inp):
-        print(inp, end='')
+        print(inp, end='', file=sys.stderr)
         super(SavedStream, self).write(inp.encode('utf-8'))
 
 
@@ -80,12 +80,24 @@ def parse_result(message):
     """Get the error summary from the test log."""
     mstr = message.decode('utf-8')
     mlines = mstr.splitlines()
+
+    # Check if this was a failed test.
     if not mlines[-1].startswith('FAILED'):
         return 0, None
-    for i, line in enumerate(mlines):
+
+    # Find where the error details begin.
+    for i_start, line in enumerate(mlines):
         if line == '='*70 or line == '-'*70:
             break
-    return 1, '\n'.join(mlines[i:])
+
+    # Look for coveralls, and cut them out.
+    for di, line in enumerate(mlines[i_start:]):
+        m = re.match('Name\s+Stmts\s+Miss\s+Cover', line)
+        if m is not None:
+            break
+    i_end = i_start + di
+
+    return 1, '\n'.join(mlines[i_start:i_end])
 
 
 def send_email(name, receiver, summary, cmd):
@@ -106,10 +118,13 @@ def send_email(name, receiver, summary, cmd):
 
 def send_slack_message(hook, summary, cmd):
     """Send a slack message with the results."""
-    message = "Nosetests failed when running: %s" % cmd
+    py_version = '%d.%d' % (sys.version_info.major, sys.version_info.minor)
+    message = "Nosetests failed in *Python %s* when running:\n`%s`"\
+              % (py_version, cmd)
     data_json = {'text': message,
                  'attachments': [{'color': 'danger',
-                                  'text': '```%s```' % summary}]}
+                                  'text': ':\n```%s```' % summary,
+                                  'mrkdwn_in': ['text', 'pretext']}]}
     resp = requests.post(hook, data=json.dumps(data_json),
                          headers={'Content-type': 'application/json'})
     if resp.status_code is not 200:
