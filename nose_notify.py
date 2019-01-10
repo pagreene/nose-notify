@@ -100,7 +100,7 @@ def parse_result(message):
     return 1, '\n'.join(mlines[i_start:i_end])
 
 
-def send_email(name, receiver, summary, cmd, label):
+def send_email(name, receiver, summary, cmd, label=None):
     """Send an email with the given message."""
     py_version = '%d.%d' % (sys.version_info.major, sys.version_info.minor)
 
@@ -109,6 +109,7 @@ def send_email(name, receiver, summary, cmd, label):
     if summary is None:
         # We passed, no need to send an email!
         return True
+    label = label if label else "some reason"
     smtp_msg = MSG_FMT.format(sender=sender, name=name, cmd=cmd,
                               content=summary, receiver=receiver,
                               version=py_version, label=label)
@@ -117,11 +118,12 @@ def send_email(name, receiver, summary, cmd, label):
     return True
 
 
-def send_slack_message(hook, summary, cmd, label):
+def send_slack_message(hook, summary, cmd, label=None):
     """Send a slack message with the results."""
     py_version = '%d.%d' % (sys.version_info.major, sys.version_info.minor)
-    message = "Nosetests of _%s_ failed in *Python %s* when running:\n`%s`"\
-              % (label, py_version, cmd)
+    label_sec = " of _%s_" % label if label else ''
+    message = "Nosetests%s failed in *Python %s* when running:\n`%s`"\
+              % (label_sec, py_version, cmd)
     data_json = {'text': message,
                  'attachments': [{'color': 'danger',
                                   'text': '```%s```' % summary,
