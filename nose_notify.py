@@ -141,7 +141,8 @@ def pop_argv(args, key):
     if key in args:
         idx = args.index(key)
         args.pop(idx)
-        val = args.pop(idx)
+        if not args[idx].startswith('-'):
+            val = args.pop(idx)
     return val
 
 
@@ -156,7 +157,12 @@ def main():
     cmd = ' '.join(['nosetests'] + sys.argv[1:])
     print(cmd)
     result = run()
-    status, summary = parse_result(result)
+
+    # Parse the results if we're sending them somewhere.
+    if hook or (name and email):
+        status, summary = parse_result(result)
+
+    # Send to slack, if we have a hook.
     if hook and status == 1:
         try:
             send_slack_message(hook, summary, cmd, label)
@@ -164,11 +170,13 @@ def main():
             print("Failed to send slack message.")
             sys.exit(1)
         sys.exit(1)
+
+    # Email if we have an email.
     if name and email and status == 1:
         sent = send_email(name, email, summary, cmd, label)
         if not sent:
             print("Failed to send email.")
-            sys.exit(1)
+        sys.exit(1)
     return
 
 
