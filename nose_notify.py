@@ -162,20 +162,22 @@ def main():
     if hook or (name and email):
         status, summary = parse_result(result)
 
-    # Send to slack, if we have a hook.
-    if hook and status == 1:
-        try:
-            send_slack_message(hook, summary, cmd, label)
-        except Exception as e:
-            print("Failed to send slack message.")
-            sys.exit(1)
-        sys.exit(1)
+    if status == 1:
+        # Send to slack, if we have a hook.
+        if hook:
+            try:
+                send_slack_message(hook, summary, cmd, label)
+            except Exception as e:
+                print("Failed to send slack message.")
+                sys.exit(1)
 
-    # Email if we have an email.
-    if name and email and status == 1:
-        sent = send_email(name, email, summary, cmd, label)
-        if not sent:
-            print("Failed to send email.")
+        # Email if we have an email.
+        if name and email:
+            sent = send_email(name, email, summary, cmd, label)
+            if not sent:
+                print("Failed to send email.")
+
+        # Indicate that the test failed.
         sys.exit(1)
     return
 
