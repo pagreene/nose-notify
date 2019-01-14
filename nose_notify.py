@@ -159,8 +159,7 @@ def main():
     result = run()
 
     # Parse the results if we're sending them somewhere.
-    if hook or (name and email):
-        status, summary = parse_result(result)
+    status, summary = parse_result(result)
 
     if status == 1:
         # Send to slack, if we have a hook.
